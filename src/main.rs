@@ -2,6 +2,7 @@ use miltr_common::{
     actions::{Action, Continue},
     commands::{Body, Connect, Header, Helo, Mail, Recipient},
     modifications::ModificationResponse,
+    optneg::OptNeg,
 };
 use miltr_server::{Milter, Server};
 use tokio::net::TcpListener;
@@ -50,6 +51,21 @@ impl ArcMilter {
 #[async_trait::async_trait]
 impl Milter for ArcMilter {
     type Error = std::io::Error;
+
+    async fn option_negotiation(
+        &mut self,
+        theirs: OptNeg,
+    ) -> Result<OptNeg, miltr_server::Error<Self::Error>> {
+        info!(
+            version = theirs.version,
+            capabilities = ?theirs.capabilities,
+            protocol = ?theirs.protocol,
+            macro_stages = ?theirs.macro_stages,
+            "option negotiation received"
+        );
+
+        Ok(OptNeg::default())
+    }
 
     async fn connect(&mut self, connect: Connect) -> Result<Action, Self::Error> {
         info!(

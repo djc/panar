@@ -1,0 +1,17 @@
+[Unit]
+Description=panar
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/djc/src/panar/target/release/panar
+Restart=on-failure
+RestartSec=5s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

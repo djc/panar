@@ -2,7 +2,7 @@ use miltr_common::{
     actions::{Action, Continue},
     commands::{Body, Connect, Header, Helo, Mail, Recipient},
     modifications::ModificationResponse,
-    optneg::OptNeg,
+    optneg::{Capability, OptNeg, Protocol},
 };
 use miltr_server::{Milter, Server};
 use tokio::net::TcpListener;
@@ -64,7 +64,21 @@ impl Milter for ArcMilter {
             "option negotiation received"
         );
 
-        Ok(OptNeg::default())
+        let mut capabilities = Capability::empty();
+        capabilities.insert(Capability::SMFIF_ADDHDRS);
+        let out = OptNeg {
+            protocol: Protocol::default(),
+            capabilities,
+            ..Default::default()
+        };
+
+        info!(
+            capabilities = ?out.capabilities,
+            protocol = ?out.protocol,
+            "option negotiation response sent",
+        );
+
+        Ok(out)
     }
 
     async fn connect(&mut self, connect: Connect) -> Result<Action, Self::Error> {

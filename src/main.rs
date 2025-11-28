@@ -6,14 +6,18 @@ use miltr_common::{
 use miltr_server::{Milter, Server};
 use tokio::net::TcpListener;
 use tokio_util::compat::TokioAsyncReadCompatExt;
-use tracing::{error, info, warn};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing::{error, info, level_filters::LevelFilter, warn};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_default())
-        .with(tracing_subscriber::fmt::layer())
+        .with(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(LevelFilter::INFO.into())
+                .from_env_lossy(),
+        )
+        .with(tracing_subscriber::fmt::layer().with_file(true))
         .init();
 
     let listener = TcpListener::bind("127.0.0.1:8765").await?;

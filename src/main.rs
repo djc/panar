@@ -232,17 +232,18 @@ impl Milter for ArcMilter {
         };
 
         let Some(selectors) = self.sealers.get(&domain) else {
-            warn!("no ARC keys found for domain {domain}");
-            return Ok(ModificationResponse::empty_continue());
-        };
-
-        // For simplicity, just use the first selector found
-        let Some((_, sealer)) = selectors.iter().next() else {
             warn!(domain, "no ARC keys found for domain");
             return Ok(ModificationResponse::empty_continue());
         };
 
+        // For simplicity, just use the first selector found
+        let Some((selector, sealer)) = selectors.iter().next() else {
+            warn!(domain, "no selectors found for domain");
+            return Ok(ModificationResponse::empty_continue());
+        };
+
         // Parse the message
+        info!(domain, selector, "parsing message");
         let message = AuthenticatedMessage::parse(&self.message)
             .ok_or_else(|| anyhow::Error::msg("failed to parse message"))?;
 
@@ -279,7 +280,7 @@ impl Milter for ArcMilter {
             builder.push(AddHeader::new(name.as_bytes(), value.trim().as_bytes()));
         }
 
-        info!("ARC headers added");
+        info!(domain, selector, "ARC headers added");
         Ok(builder.contin())
     }
 

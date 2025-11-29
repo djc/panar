@@ -208,11 +208,13 @@ impl Milter for ArcMilter {
         self.message.extend(header.name().as_bytes());
         self.message.extend(b": ");
         self.message.extend(header.value().as_bytes());
+        self.message.extend(b"\r\n");
         Ok(Continue.into())
     }
 
     async fn end_of_header(&mut self) -> Result<Action, Self::Error> {
         debug!("end of headers");
+        self.message.extend(b"\r\n");
         Ok(Continue.into())
     }
 

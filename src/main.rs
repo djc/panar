@@ -9,7 +9,7 @@ use miltr_common::{
 use miltr_server::{Milter, Server};
 use tokio::net::TcpListener;
 use tokio_util::compat::TokioAsyncReadCompatExt;
-use tracing::{error, info, level_filters::LevelFilter, warn};
+use tracing::{debug, error, info, level_filters::LevelFilter, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         let (stream, addr) = listener.accept().await?;
-        info!("accepted connection from {addr}");
+        debug!("accepted connection from {addr}");
         if let Err(error) = server.handle_connection(stream.compat()).await {
             error!(%addr, %error, "milter error");
         }
@@ -72,7 +72,7 @@ impl Milter for ArcMilter {
         &mut self,
         theirs: OptNeg,
     ) -> Result<OptNeg, miltr_server::Error<Self::Error>> {
-        info!(
+        debug!(
             version = theirs.version,
             capabilities = ?theirs.capabilities,
             protocol = ?theirs.protocol,
@@ -88,7 +88,7 @@ impl Milter for ArcMilter {
             ..Default::default()
         };
 
-        info!(
+        debug!(
             capabilities = ?out.capabilities,
             protocol = ?out.protocol,
             "option negotiation response sent",
@@ -132,23 +132,23 @@ impl Milter for ArcMilter {
     }
 
     async fn data(&mut self) -> Result<Action, Self::Error> {
-        info!("DATA command received");
+        debug!("DATA command received");
         Ok(Continue.into())
     }
 
     async fn header(&mut self, header: Header) -> Result<Action, Self::Error> {
-        info!(name = %header.name(), value = %header.value(), "header received");
+        debug!(name = %header.name(), value = %header.value(), "header received");
         self.headers.push(header);
         Ok(Continue.into())
     }
 
     async fn end_of_header(&mut self) -> Result<Action, Self::Error> {
-        info!(received = self.headers.len(), "end of headers");
+        debug!(received = self.headers.len(), "end of headers");
         Ok(Continue.into())
     }
 
     async fn body(&mut self, body: Body) -> Result<Action, Self::Error> {
-        info!(len = body.as_bytes().len(), "body chunk received");
+        debug!(len = body.as_bytes().len(), "body chunk received");
         self.body.extend_from_slice(body.as_bytes());
         Ok(Continue.into())
     }

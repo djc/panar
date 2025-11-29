@@ -1,3 +1,5 @@
+use std::env;
+
 use miltr_common::{
     actions::{Action, Continue},
     commands::{Body, Connect, Header, Helo, Mail, Recipient},
@@ -12,14 +14,28 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy(),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    let builder = tracing_subscriber::registry().with(
+        tracing_subscriber::EnvFilter::builder()
+            .with_default_directive(LevelFilter::INFO.into())
+            .from_env_lossy(),
+    );
+
+    match env::var("JOURNAL_STREAM") {
+        Ok(_) => {
+            builder
+                .with(
+                    tracing_subscriber::fmt::layer()
+                        .without_time()
+                        .with_target(false),
+                )
+                .init();
+        }
+        Err(_) => {
+            builder
+                .with(tracing_subscriber::fmt::layer().with_target(false))
+                .init();
+        }
+    }
 
     let listener = TcpListener::bind("127.0.0.1:8765").await?;
     info!("listening on 127.0.0.1:8765");

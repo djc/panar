@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .with_default_directive(LevelFilter::INFO.into())
                 .from_env_lossy(),
         )
-        .with(tracing_subscriber::fmt::layer().with_file(true))
+        .with(tracing_subscriber::fmt::layer())
         .init();
 
     let listener = TcpListener::bind("127.0.0.1:8765").await?;

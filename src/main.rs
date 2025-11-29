@@ -1,5 +1,16 @@
-use std::env;
+use std::{
+    collections::HashMap,
+    env, fs,
+    net::{Ipv4Addr, SocketAddr},
+    path::PathBuf,
+};
 
+use clap::Parser;
+use mail_auth::{
+    arc::ArcSealer,
+    common::crypto::{RsaKey, Sha256},
+    dkim::Done,
+};
 use miltr_common::{
     actions::{Action, Continue},
     commands::{Body, Connect, Header, Helo, Mail, Recipient},
@@ -7,6 +18,7 @@ use miltr_common::{
     optneg::{Capability, OptNeg, Protocol},
 };
 use miltr_server::{Milter, Server};
+use serde::Deserialize;
 use tokio::net::TcpListener;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{debug, error, info, level_filters::LevelFilter, warn};
@@ -37,9 +49,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let listener = TcpListener::bind("127.0.0.1:8765").await?;
-    info!("listening on 127.0.0.1:8765");
-    let mut milter = ArcMilter::default();
+    let options = Options::parse();
+    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, options.port));
+    let listener = TcpListener::bind(addr).await?;
+    info!(%addr, "listening");
+
+    let config = fs::read_to_string(&options.config)?;
+    let mut milter = ArcMilter::new(toml::from_str(&config)?)?;
     let mut server = Server::default_postfix(&mut milter);
 
     loop {
@@ -51,14 +67,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Parser)]
+struct Options {
+    #[clap(short, long, default_value = "8765")]
+    port: u16,
+    #[clap(short, long, default_value = "/etc/panar/config.toml")]
+    config: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+struct Config {
+    keys: HashMap<String, HashMap<String, PathBuf>>,
+}
+
 struct ArcMilter {
+    domain: Option<String>,
     headers: Vec<Header>,
     body: Vec<u8>,
+    #[expect(dead_code)]
+    sealers: HashMap<String, HashMap<String, ArcSealer<RsaKey<Sha256>, Done>>>,
 }
 
 impl ArcMilter {
+    fn new(config: Config) -> anyhow::Result<Self> {
+        let mut sealers = HashMap::new();
+        for (domain, selectors) in config.keys {
+            let inner = sealers.entry(domain.clone()).or_insert_with(HashMap::new);
+            for (selector, path) in selectors {
+                let pem = fs::read_to_string(&path).map_err(|e| {
+                    anyhow::Error::msg(format!("failed to read key file {path:?}: {e}"))
+                })?;
+
+                let key = RsaKey::<Sha256>::from_pkcs8_pem(&pem).map_err(|e| {
+                    anyhow::Error::msg(format!("failed to parse key file {path:?}: {e}"))
+                })?;
+
+                let sealer = ArcSealer::from_key(key)
+                    .domain(&domain)
+                    .selector(&selector)
+                    .headers(["From", "To", "Subject", "Date"]);
+
+                info!(%domain, %selector, path = %path.display(), "loaded key");
+                inner.insert(selector, sealer);
+            }
+        }
+
+        Ok(Self {
+            domain: None,
+            headers: Vec::new(),
+            body: Vec::new(),
+            sealers,
+        })
+    }
+
     fn reset(&mut self) {
+        self.domain = None;
         self.headers.clear();
         self.body.clear();
     }
@@ -123,6 +186,10 @@ impl Milter for ArcMilter {
     }
 
     async fn rcpt(&mut self, recipient: Recipient) -> Result<Action, Self::Error> {
+        if let Some((_, domain)) = recipient.recipient().rsplit_once('@') {
+            self.domain = Some(domain.trim_end_matches('>').to_owned());
+        }
+
         info!(
             recipient = %recipient.recipient(),
             args = ?recipient.esmtp_args(),

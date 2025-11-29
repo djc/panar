@@ -18,7 +18,7 @@ use mail_auth::{
 use miltr_common::{
     actions::{Action, Continue},
     commands::{Body, Connect, Header, Helo, Mail, Recipient},
-    modifications::ModificationResponse,
+    modifications::{headers::AddHeader, ModificationResponse},
     optneg::{Capability, OptNeg, Protocol},
 };
 use miltr_server::{Milter, Server};
@@ -247,9 +247,38 @@ impl Milter for ArcMilter {
         let auth_results = AuthenticationResults::new(&domain);
         let arc_output = ArcOutput::default();
         let arc_set = sealer.seal(&message, &auth_results, &arc_output)?;
-        info!(headers = arc_set.to_header(), "ARC set created");
+        let headers = arc_set.to_header();
+        let mut builder = ModificationResponse::builder();
+        let mut current: Option<(String, String)> = None;
 
-        Ok(ModificationResponse::empty_continue())
+        for line in headers.lines() {
+            if line.starts_with(|c: char| c.is_ascii_whitespace()) {
+                // Continuation of previous header (folded header)
+                if let Some((_, value)) = &mut current {
+                    value.push_str(line);
+                }
+                continue;
+            }
+
+            if let Some((name, value)) = current.take() {
+                builder.push(AddHeader::new(name.as_bytes(), value.trim().as_bytes()));
+            }
+
+            let Some((name, value)) = line.split_once(':') else {
+                continue;
+            };
+
+            // Start collecting new header
+            current = Some((name.trim().to_owned(), value.to_owned()));
+        }
+
+        // Don't forget the last header
+        if let Some((name, value)) = current {
+            builder.push(AddHeader::new(name.as_bytes(), value.trim().as_bytes()));
+        }
+
+        info!("ARC headers added");
+        Ok(builder.contin())
     }
 
     async fn abort(&mut self) -> Result<(), Self::Error> {

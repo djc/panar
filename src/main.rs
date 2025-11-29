@@ -8,8 +8,12 @@ use std::{
 use clap::Parser;
 use mail_auth::{
     arc::ArcSealer,
-    common::crypto::{RsaKey, Sha256},
+    common::{
+        crypto::{RsaKey, Sha256},
+        headers::HeaderWriter,
+    },
     dkim::Done,
+    ArcOutput, AuthenticatedMessage, AuthenticationResults,
 };
 use miltr_common::{
     actions::{Action, Continue},
@@ -82,9 +86,7 @@ struct Config {
 
 struct ArcMilter {
     domain: Option<String>,
-    headers: Vec<Header>,
-    body: Vec<u8>,
-    #[expect(dead_code)]
+    message: Vec<u8>,
     sealers: HashMap<String, HashMap<String, ArcSealer<RsaKey<Sha256>, Done>>>,
 }
 
@@ -114,22 +116,20 @@ impl ArcMilter {
 
         Ok(Self {
             domain: None,
-            headers: Vec::new(),
-            body: Vec::new(),
+            message: Vec::with_capacity(1024),
             sealers,
         })
     }
 
     fn reset(&mut self) {
         self.domain = None;
-        self.headers.clear();
-        self.body.clear();
+        self.message.clear();
     }
 }
 
 #[async_trait::async_trait]
 impl Milter for ArcMilter {
-    type Error = std::io::Error;
+    type Error = anyhow::Error;
 
     async fn option_negotiation(
         &mut self,
@@ -205,23 +205,50 @@ impl Milter for ArcMilter {
 
     async fn header(&mut self, header: Header) -> Result<Action, Self::Error> {
         debug!(name = %header.name(), value = %header.value(), "header received");
-        self.headers.push(header);
+        self.message.extend(header.name().as_bytes());
+        self.message.extend(b": ");
+        self.message.extend(header.value().as_bytes());
         Ok(Continue.into())
     }
 
     async fn end_of_header(&mut self) -> Result<Action, Self::Error> {
-        debug!(received = self.headers.len(), "end of headers");
+        debug!("end of headers");
         Ok(Continue.into())
     }
 
     async fn body(&mut self, body: Body) -> Result<Action, Self::Error> {
         debug!(len = body.as_bytes().len(), "body chunk received");
-        self.body.extend_from_slice(body.as_bytes());
+        self.message.extend(body.as_bytes());
         Ok(Continue.into())
     }
 
     async fn end_of_body(&mut self) -> Result<ModificationResponse, Self::Error> {
         info!("end of message");
+        let Some(domain) = self.domain.take() else {
+            warn!("no domain found from RCPT TO");
+            return Ok(ModificationResponse::empty_continue());
+        };
+
+        let Some(selectors) = self.sealers.get(&domain) else {
+            warn!("no ARC keys found for domain {domain}");
+            return Ok(ModificationResponse::empty_continue());
+        };
+
+        // For simplicity, just use the first selector found
+        let Some((_, sealer)) = selectors.iter().next() else {
+            warn!(domain, "no ARC keys found for domain");
+            return Ok(ModificationResponse::empty_continue());
+        };
+
+        // Parse the message
+        let message = AuthenticatedMessage::parse(&self.message)
+            .ok_or_else(|| anyhow::Error::msg("failed to parse message"))?;
+
+        let auth_results = AuthenticationResults::new(&domain);
+        let arc_output = ArcOutput::default();
+        let arc_set = sealer.seal(&message, &auth_results, &arc_output)?;
+        info!(headers = arc_set.to_header(), "ARC set created");
+
         Ok(ModificationResponse::empty_continue())
     }
 

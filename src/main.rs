@@ -161,7 +161,7 @@ impl Milter for ArcMilter {
     }
 
     async fn connect(&mut self, connect: Connect) -> Result<Action, Self::Error> {
-        info!(
+        debug!(
             address = %connect.address(),
             port = connect.port,
             family = ?connect.family,
@@ -173,12 +173,12 @@ impl Milter for ArcMilter {
     }
 
     async fn helo(&mut self, helo: Helo) -> Result<Action, Self::Error> {
-        info!(helo = %helo.helo(), "HELO/EHLO received");
+        debug!(helo = %helo.helo(), "HELO/EHLO received");
         Ok(Continue.into())
     }
 
     async fn mail(&mut self, mail: Mail) -> Result<Action, Self::Error> {
-        info!(
+        debug!(
             sender = %mail.sender(), args = ?mail.esmtp_args(),
             "MAIL FROM",
         );
@@ -284,13 +284,13 @@ impl Milter for ArcMilter {
     }
 
     async fn abort(&mut self) -> Result<(), Self::Error> {
-        warn!("message aborted");
+        debug!("message aborted");
         self.reset();
         Ok(())
     }
 
     async fn quit(&mut self) -> Result<(), Self::Error> {
-        info!("connection quit");
+        debug!("connection quit");
         self.reset();
         Ok(())
     }

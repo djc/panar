@@ -2,11 +2,12 @@ use std::{
     env, fs,
     net::{Ipv4Addr, SocketAddr},
     path::PathBuf,
+    sync::Arc,
 };
 
 use clap::Parser;
 use miltr_server::Server;
-use panar::ArcMilter;
+use panar::{ArcMilter, State};
 use tokio::net::TcpListener;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{debug, error, info, level_filters::LevelFilter};
@@ -43,7 +44,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(%addr, "listening");
 
     let config = fs::read_to_string(&options.config)?;
-    let mut milter = ArcMilter::new(toml::from_str(&config)?)?;
+    let state = Arc::new(State::new(toml::from_str(&config)?)?);
+    let mut milter = ArcMilter::new(state);
     let mut server = Server::default_postfix(&mut milter);
 
     loop {

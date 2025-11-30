@@ -47,11 +47,14 @@ impl Listener {
             };
 
             debug!("accepted connection from {addr}");
-            let mut milter = ArcMilter::new(self.state.clone());
-            let mut server = miltr_server::Server::default_postfix(&mut milter);
-            if let Err(error) = server.handle_connection(stream.compat()).await {
-                error!(%addr, %error, "milter error");
-            }
+            let state = self.state.clone();
+            tokio::spawn(async move {
+                let mut milter = ArcMilter::new(state);
+                let mut server = miltr_server::Server::default_postfix(&mut milter);
+                if let Err(error) = server.handle_connection(stream.compat()).await {
+                    error!(%addr, %error, "milter error");
+                }
+            });
         }
     }
 }

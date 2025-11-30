@@ -60,17 +60,17 @@ impl Listener {
 }
 
 struct Connection {
+    state: Arc<State>,
     domain: Option<String>,
     message: Vec<u8>,
-    state: Arc<State>,
 }
 
 impl Connection {
     pub fn new(state: Arc<State>) -> Self {
         Self {
+            state,
             domain: None,
             message: Vec::with_capacity(1024),
-            state,
         }
     }
 

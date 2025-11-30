@@ -203,34 +203,26 @@ impl Milter for Connection {
         let auth_results = AuthenticationResults::new(&domain);
         let arc_output = ArcOutput::default();
         let arc_set = sealer.seal(&message, &auth_results, &arc_output)?;
-        let headers = arc_set.to_header();
-        let mut builder = ModificationResponse::builder();
-        let mut current: Option<(String, String)> = None;
+        let concatenated = arc_set.to_header();
+        let mut headers = Vec::<(String, String)>::new();
 
-        for line in headers.lines() {
+        for line in concatenated.lines() {
             if line.starts_with(|c: char| c.is_ascii_whitespace()) {
-                // Continuation of previous header (folded header)
-                if let Some((_, value)) = &mut current {
+                if let Some((_, value)) = headers.last_mut() {
                     value.push_str(line);
                 }
                 continue;
+            } else if let Some((name, value)) = line.split_once(':') {
+                headers.push((name.trim().to_owned(), value.to_owned()));
+            } else {
+                warn!(line, "malformed ARC header line");
+                return Ok(ModificationResponse::empty_continue());
             }
-
-            if let Some((name, value)) = current.take() {
-                builder.push(AddHeader::new(name.as_bytes(), value.trim().as_bytes()));
-            }
-
-            let Some((name, value)) = line.split_once(':') else {
-                continue;
-            };
-
-            // Start collecting new header
-            current = Some((name.trim().to_owned(), value.to_owned()));
         }
 
-        // Don't forget the last header
-        if let Some((name, value)) = current {
-            builder.push(AddHeader::new(name.as_bytes(), value.trim().as_bytes()));
+        let mut builder = ModificationResponse::builder();
+        for (name, value) in headers {
+            builder.push(AddHeader::new(name.as_bytes(), value.as_bytes()));
         }
 
         info!(domain, selector, "ARC headers added");

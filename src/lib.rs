@@ -19,11 +19,6 @@ use miltr_server::Milter;
 use serde::Deserialize;
 use tracing::{debug, info, warn};
 
-#[derive(Debug, Deserialize)]
-pub struct Config {
-    keys: HashMap<String, HashMap<String, PathBuf>>,
-}
-
 pub struct ArcMilter {
     domain: Option<String>,
     message: Vec<u8>,
@@ -235,4 +230,9 @@ impl Milter for ArcMilter {
         self.reset();
         Ok(())
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Config {
+    keys: HashMap<String, HashMap<String, PathBuf>>,
 }

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, fs, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use mail_auth::{
     arc::ArcSealer,
@@ -17,9 +17,46 @@ use miltr_common::{
 };
 use miltr_server::Milter;
 use serde::Deserialize;
-use tracing::{debug, info, warn};
+use tokio::net::TcpListener;
+use tokio_util::compat::TokioAsyncReadCompatExt;
+use tracing::{debug, error, info, warn};
 
-pub struct ArcMilter {
+pub struct Listener {
+    inner: TcpListener,
+    state: Arc<State>,
+}
+
+impl Listener {
+    pub async fn new(addr: SocketAddr, state: State) -> anyhow::Result<Self> {
+        let inner = TcpListener::bind(addr).await?;
+        info!(%addr, "listening");
+        Ok(Self {
+            inner,
+            state: Arc::new(state),
+        })
+    }
+
+    pub async fn run(self) {
+        loop {
+            let (stream, addr) = match self.inner.accept().await {
+                Ok((stream, addr)) => (stream, addr),
+                Err(e) => {
+                    error!(%e, "failed to accept connection");
+                    continue;
+                }
+            };
+
+            debug!("accepted connection from {addr}");
+            let mut milter = ArcMilter::new(self.state.clone());
+            let mut server = miltr_server::Server::default_postfix(&mut milter);
+            if let Err(error) = server.handle_connection(stream.compat()).await {
+                error!(%addr, %error, "milter error");
+            }
+        }
+    }
+}
+
+struct ArcMilter {
     domain: Option<String>,
     message: Vec<u8>,
     state: Arc<State>,

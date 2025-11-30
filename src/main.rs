@@ -2,15 +2,11 @@ use std::{
     env, fs,
     net::{Ipv4Addr, SocketAddr},
     path::PathBuf,
-    sync::Arc,
 };
 
 use clap::Parser;
-use miltr_server::Server;
-use panar::{ArcMilter, State};
-use tokio::net::TcpListener;
-use tokio_util::compat::TokioAsyncReadCompatExt;
-use tracing::{debug, error, info, level_filters::LevelFilter};
+use panar::{Listener, State};
+use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -39,22 +35,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let options = Options::parse();
-    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, options.port));
-    let listener = TcpListener::bind(addr).await?;
-    info!(%addr, "listening");
-
     let config = fs::read_to_string(&options.config)?;
-    let state = Arc::new(State::new(toml::from_str(&config)?)?);
-    let mut milter = ArcMilter::new(state);
-    let mut server = Server::default_postfix(&mut milter);
+    let state = State::new(toml::from_str(&config)?)?;
 
-    loop {
-        let (stream, addr) = listener.accept().await?;
-        debug!("accepted connection from {addr}");
-        if let Err(error) = server.handle_connection(stream.compat()).await {
-            error!(%addr, %error, "milter error");
-        }
-    }
+    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, options.port));
+    let listener = Listener::new(addr, state).await?;
+    tokio::spawn(listener.run()).await?;
+    Ok(())
 }
 
 #[derive(Debug, Parser)]

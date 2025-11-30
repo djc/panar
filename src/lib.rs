@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use mail_auth::{
     arc::ArcSealer,
@@ -22,38 +22,16 @@ use tracing::{debug, info, warn};
 pub struct ArcMilter {
     domain: Option<String>,
     message: Vec<u8>,
-    sealers: HashMap<String, HashMap<String, ArcSealer<RsaKey<Sha256>, Done>>>,
+    state: Arc<State>,
 }
 
 impl ArcMilter {
-    pub fn new(config: Config) -> anyhow::Result<Self> {
-        let mut sealers = HashMap::new();
-        for (domain, selectors) in config.keys {
-            let inner = sealers.entry(domain.clone()).or_insert_with(HashMap::new);
-            for (selector, path) in selectors {
-                let pem = fs::read_to_string(&path).map_err(|e| {
-                    anyhow::Error::msg(format!("failed to read key file {path:?}: {e}"))
-                })?;
-
-                let key = RsaKey::<Sha256>::from_pkcs8_pem(&pem).map_err(|e| {
-                    anyhow::Error::msg(format!("failed to parse key file {path:?}: {e}"))
-                })?;
-
-                let sealer = ArcSealer::from_key(key)
-                    .domain(&domain)
-                    .selector(&selector)
-                    .headers(["From", "To", "Subject", "Date"]);
-
-                info!(%domain, %selector, path = %path.display(), "loaded key");
-                inner.insert(selector, sealer);
-            }
-        }
-
-        Ok(Self {
+    pub fn new(state: Arc<State>) -> Self {
+        Self {
             domain: None,
             message: Vec::with_capacity(1024),
-            sealers,
-        })
+            state,
+        }
     }
 
     fn reset(&mut self) {
@@ -166,7 +144,7 @@ impl Milter for ArcMilter {
             return Ok(ModificationResponse::empty_continue());
         };
 
-        let Some(selectors) = self.sealers.get(&domain) else {
+        let Some(selectors) = self.state.sealers.get(&domain) else {
             warn!(domain, "no ARC keys found for domain");
             return Ok(ModificationResponse::empty_continue());
         };
@@ -229,6 +207,38 @@ impl Milter for ArcMilter {
         debug!("connection quit");
         self.reset();
         Ok(())
+    }
+}
+
+pub struct State {
+    sealers: HashMap<String, HashMap<String, ArcSealer<RsaKey<Sha256>, Done>>>,
+}
+
+impl State {
+    pub fn new(config: Config) -> anyhow::Result<Self> {
+        let mut sealers = HashMap::new();
+        for (domain, selectors) in config.keys {
+            let inner = sealers.entry(domain.clone()).or_insert_with(HashMap::new);
+            for (selector, path) in selectors {
+                let pem = fs::read_to_string(&path).map_err(|e| {
+                    anyhow::Error::msg(format!("failed to read key file {path:?}: {e}"))
+                })?;
+
+                let key = RsaKey::<Sha256>::from_pkcs8_pem(&pem).map_err(|e| {
+                    anyhow::Error::msg(format!("failed to parse key file {path:?}: {e}"))
+                })?;
+
+                let sealer = ArcSealer::from_key(key)
+                    .domain(&domain)
+                    .selector(&selector)
+                    .headers(["From", "To", "Subject", "Date"]);
+
+                info!(%domain, %selector, path = %path.display(), "loaded key");
+                inner.insert(selector, sealer);
+            }
+        }
+
+        Ok(Self { sealers })
     }
 }
 

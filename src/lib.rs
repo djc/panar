@@ -49,7 +49,7 @@ impl Listener {
             debug!("accepted connection from {addr}");
             let state = self.state.clone();
             tokio::spawn(async move {
-                let mut milter = ArcMilter::new(state);
+                let mut milter = Connection::new(state);
                 let mut server = miltr_server::Server::default_postfix(&mut milter);
                 if let Err(error) = server.handle_connection(stream.compat()).await {
                     error!(%addr, %error, "milter error");
@@ -59,13 +59,13 @@ impl Listener {
     }
 }
 
-struct ArcMilter {
+struct Connection {
     domain: Option<String>,
     message: Vec<u8>,
     state: Arc<State>,
 }
 
-impl ArcMilter {
+impl Connection {
     pub fn new(state: Arc<State>) -> Self {
         Self {
             domain: None,
@@ -81,7 +81,7 @@ impl ArcMilter {
 }
 
 #[async_trait::async_trait]
-impl Milter for ArcMilter {
+impl Milter for Connection {
     type Error = anyhow::Error;
 
     async fn option_negotiation(

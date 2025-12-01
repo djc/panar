@@ -156,7 +156,7 @@ impl Milter for Connection {
         };
 
         if !self.state.sealers.contains_key(domain) {
-            debug!(address, "no ARC keys found for domain in RCPT TO");
+            warn!(address, "no ARC keys found for domain in RCPT TO");
             return Ok(Skip.into());
         }
 

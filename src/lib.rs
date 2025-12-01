@@ -222,7 +222,7 @@ impl Milter for Connection {
 
         // For simplicity, just use the first selector found
         let Some((selector, sealer)) = selectors.iter().next() else {
-            warn!(domain, "no selectors found for domain");
+            warn!(recipient, "no selectors found for domain");
             return Ok(ModificationResponse::empty_continue());
         };
 
@@ -230,7 +230,7 @@ impl Milter for Connection {
         let message = match AuthenticatedMessage::parse(&self.message) {
             Some(msg) => msg,
             None => {
-                error!(domain, selector, "failed to parse message");
+                error!(recipient, selector, "failed to parse message");
                 return Ok(ModificationResponse::empty_continue());
             }
         };
@@ -240,7 +240,7 @@ impl Milter for Connection {
         let arc_set = match sealer.seal(&message, &auth_results, &arc_output) {
             Ok(set) => set,
             Err(error) => {
-                error!(%error, domain, selector, "failed to seal ARC headers");
+                error!(%error, recipient, selector, "failed to seal ARC headers");
                 return Ok(ModificationResponse::empty_continue());
             }
         };
@@ -266,7 +266,7 @@ impl Milter for Connection {
             builder.push(AddHeader::new(name.as_bytes(), value.as_bytes()));
         }
 
-        info!(domain, selector, "ARC headers added");
+        info!(recipient, selector, "ARC headers added");
         Ok(builder.contin())
     }
 

@@ -146,7 +146,22 @@ impl Milter for Connection {
     }
 
     async fn rcpt(&mut self, recipient: Recipient) -> Result<Action, Self::Error> {
-        self.recipient = Some(recipient.recipient().into_owned());
+        let address = recipient.recipient().into_owned();
+        let domain = match address.rsplit_once('a') {
+            Some((_, domain)) => domain.trim_end_matches('>'),
+            _ => {
+                warn!(%address, "malformed recipient address in RCPT TO");
+                return Ok(Skip.into());
+            }
+        };
+
+        if !self.state.sealers.contains_key(domain) {
+            debug!(address, "no ARC keys found for domain in RCPT TO");
+            return Ok(Skip.into());
+        }
+
+        debug!(?recipient, "RCPT TO received");
+        self.recipient = Some(address);
         Ok(Continue.into())
     }
 
@@ -201,7 +216,7 @@ impl Milter for Connection {
         };
 
         let Some(selectors) = self.state.sealers.get(domain) else {
-            warn!(domain, "no ARC keys found for domain");
+            // This should not happen as we checked in RCPT TO
             return Ok(ModificationResponse::empty_continue());
         };
 

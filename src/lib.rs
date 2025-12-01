@@ -227,9 +227,13 @@ impl Milter for Connection {
         };
 
         // Parse the message
-        info!(domain, selector, "parsing message");
-        let message = AuthenticatedMessage::parse(&self.message)
-            .ok_or_else(|| anyhow::Error::msg("failed to parse message"))?;
+        let message = match AuthenticatedMessage::parse(&self.message) {
+            Some(msg) => msg,
+            None => {
+                error!(domain, selector, "failed to parse message");
+                return Ok(ModificationResponse::empty_continue());
+            }
+        };
 
         let auth_results = AuthenticationResults::new(domain);
         let arc_output = ArcOutput::default();

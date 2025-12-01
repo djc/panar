@@ -61,6 +61,7 @@ impl Listener {
 
 struct Connection {
     state: Arc<State>,
+    connect: Option<Connect>,
     domain: Option<String>,
     message: Vec<u8>,
 }
@@ -69,12 +70,14 @@ impl Connection {
     pub fn new(state: Arc<State>) -> Self {
         Self {
             state,
+            connect: None,
             domain: None,
             message: Vec::with_capacity(1024),
         }
     }
 
     fn reset(&mut self) {
+        self.connect = None;
         self.domain = None;
         self.message.clear();
     }
@@ -122,6 +125,7 @@ impl Milter for Connection {
             "connection accepted",
         );
 
+        self.connect = Some(connect);
         Ok(Continue.into())
     }
 

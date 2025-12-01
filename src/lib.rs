@@ -147,7 +147,7 @@ impl Milter for Connection {
 
     async fn rcpt(&mut self, recipient: Recipient) -> Result<Action, Self::Error> {
         let address = recipient.recipient().into_owned();
-        let domain = match address.rsplit_once('a') {
+        let domain = match address.rsplit_once('@') {
             Some((_, domain)) => domain.trim_end_matches('>'),
             _ => {
                 warn!(%address, "malformed recipient address in RCPT TO");

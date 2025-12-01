@@ -266,7 +266,18 @@ impl Milter for Connection {
             builder.push(AddHeader::new(name.as_bytes(), value.as_bytes()));
         }
 
-        info!(recipient, selector, "ARC headers added");
+        if let Some(connect) = &self.connect {
+            info!(
+                client.address = %connect.address(),
+                client.hostname = %connect.hostname(),
+                recipient,
+                selector,
+                "ARC headers added",
+            );
+        } else {
+            info!(recipient, selector, "ARC headers added");
+        }
+
         Ok(builder.contin())
     }
 

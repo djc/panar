@@ -62,7 +62,7 @@ impl Listener {
 struct Connection {
     state: Arc<State>,
     connect: Option<Connect>,
-    domain: Option<String>,
+    recipient: Option<Recipient>,
     message: Vec<u8>,
 }
 
@@ -71,14 +71,14 @@ impl Connection {
         Self {
             state,
             connect: None,
-            domain: None,
+            recipient: None,
             message: Vec::with_capacity(1024),
         }
     }
 
     fn reset(&mut self) {
         self.connect = None;
-        self.domain = None;
+        self.recipient = None;
         self.message.clear();
     }
 }
@@ -143,15 +143,7 @@ impl Milter for Connection {
     }
 
     async fn rcpt(&mut self, recipient: Recipient) -> Result<Action, Self::Error> {
-        if let Some((_, domain)) = recipient.recipient().rsplit_once('@') {
-            self.domain = Some(domain.trim_end_matches('>').to_owned());
-        }
-
-        info!(
-            recipient = %recipient.recipient(),
-            args = ?recipient.esmtp_args(),
-            "RCPT TO",
-        );
+        self.recipient = Some(recipient);
         Ok(Continue.into())
     }
 
@@ -183,12 +175,21 @@ impl Milter for Connection {
 
     async fn end_of_body(&mut self) -> Result<ModificationResponse, Self::Error> {
         info!("end of message");
-        let Some(domain) = self.domain.take() else {
+        let Some(recipient) = self.recipient.take() else {
             warn!("no domain found from RCPT TO");
             return Ok(ModificationResponse::empty_continue());
         };
 
-        let Some(selectors) = self.state.sealers.get(&domain) else {
+        let recipient = recipient.recipient();
+        let domain = match recipient.as_ref().rsplit_once('a') {
+            Some((_, domain)) => domain.trim_end_matches('>'),
+            None => {
+                warn!(%recipient, "malformed recipient address");
+                return Ok(ModificationResponse::empty_continue());
+            }
+        };
+
+        let Some(selectors) = self.state.sealers.get(domain) else {
             warn!(domain, "no ARC keys found for domain");
             return Ok(ModificationResponse::empty_continue());
         };
@@ -204,7 +205,7 @@ impl Milter for Connection {
         let message = AuthenticatedMessage::parse(&self.message)
             .ok_or_else(|| anyhow::Error::msg("failed to parse message"))?;
 
-        let auth_results = AuthenticationResults::new(&domain);
+        let auth_results = AuthenticationResults::new(domain);
         let arc_output = ArcOutput::default();
         let arc_set = sealer.seal(&message, &auth_results, &arc_output)?;
         let concatenated = arc_set.to_header();

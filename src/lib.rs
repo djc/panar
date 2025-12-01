@@ -216,6 +216,7 @@ impl Milter for Connection {
 
         let Some(selectors) = self.state.sealers.get(domain) else {
             // This should not happen as we checked in RCPT TO
+            warn!(%recipient, "no ARC keys found for recipient");
             return Ok(ModificationResponse::empty_continue());
         };
 

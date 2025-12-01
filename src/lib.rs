@@ -233,10 +233,16 @@ impl Milter for Connection {
 
         let auth_results = AuthenticationResults::new(domain);
         let arc_output = ArcOutput::default();
-        let arc_set = sealer.seal(&message, &auth_results, &arc_output)?;
+        let arc_set = match sealer.seal(&message, &auth_results, &arc_output) {
+            Ok(set) => set,
+            Err(error) => {
+                error!(%error, domain, selector, "failed to seal ARC headers");
+                return Ok(ModificationResponse::empty_continue());
+            }
+        };
+
         let concatenated = arc_set.to_header();
         let mut headers = Vec::<(String, String)>::new();
-
         for line in concatenated.lines() {
             if line.starts_with(|c: char| c.is_ascii_whitespace()) {
                 if let Some((_, value)) = headers.last_mut() {

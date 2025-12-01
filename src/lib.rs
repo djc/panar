@@ -206,9 +206,10 @@ impl Milter for Connection {
             return Ok(ModificationResponse::empty_continue());
         };
 
-        let domain = match recipient.rsplit_once('a') {
+        let domain = match recipient.rsplit_once('@') {
             Some((_, domain)) => domain.trim_end_matches('>'),
             None => {
+                // This should not happen, as we checked in RCPT
                 warn!(%recipient, "malformed recipient address");
                 return Ok(ModificationResponse::empty_continue());
             }

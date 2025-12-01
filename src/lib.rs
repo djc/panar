@@ -201,7 +201,6 @@ impl Milter for Connection {
     }
 
     async fn end_of_body(&mut self) -> Result<ModificationResponse, Self::Error> {
-        info!("end of message");
         let Some(recipient) = self.recipient.take() else {
             warn!("no domain found from RCPT TO");
             return Ok(ModificationResponse::empty_continue());

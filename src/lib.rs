@@ -10,7 +10,7 @@ use mail_auth::{
     ArcOutput, AuthenticatedMessage, AuthenticationResults,
 };
 use miltr_common::{
-    actions::{Action, Continue},
+    actions::{Action, Continue, Skip},
     commands::{Body, Connect, Header, Helo, Mail, Recipient},
     modifications::{headers::AddHeader, ModificationResponse},
     optneg::{Capability, OptNeg, Protocol},
@@ -63,6 +63,7 @@ struct Connection {
     state: Arc<State>,
     connect: Option<Connect>,
     recipient: Option<Recipient>,
+    received: bool,
     message: Vec<u8>,
 }
 
@@ -72,6 +73,7 @@ impl Connection {
             state,
             connect: None,
             recipient: None,
+            received: false,
             message: Vec::with_capacity(1024),
         }
     }
@@ -79,6 +81,7 @@ impl Connection {
     fn reset(&mut self) {
         self.connect = None;
         self.recipient = None;
+        self.received = false;
         self.message.clear();
     }
 }
@@ -154,6 +157,10 @@ impl Milter for Connection {
 
     async fn header(&mut self, header: Header) -> Result<Action, Self::Error> {
         debug!(name = %header.name(), value = %header.value(), "header received");
+        if header.name().eq_ignore_ascii_case("received") {
+            self.received = true;
+        }
+
         self.message.extend(header.name().as_bytes());
         self.message.extend(b": ");
         self.message.extend(header.value().as_bytes());
@@ -163,8 +170,13 @@ impl Milter for Connection {
 
     async fn end_of_header(&mut self) -> Result<Action, Self::Error> {
         debug!("end of headers");
-        self.message.extend(b"\r\n");
-        Ok(Continue.into())
+        match self.received {
+            true => {
+                self.message.extend(b"\r\n");
+                Ok(Continue.into())
+            }
+            false => Ok(Skip.into()),
+        }
     }
 
     async fn body(&mut self, body: Body) -> Result<Action, Self::Error> {

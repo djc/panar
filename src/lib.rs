@@ -62,7 +62,7 @@ impl Listener {
 struct Connection {
     state: Arc<State>,
     connect: Option<Connect>,
-    recipient: Option<Recipient>,
+    recipient: Option<String>,
     received: bool,
     message: Vec<u8>,
 }
@@ -146,7 +146,7 @@ impl Milter for Connection {
     }
 
     async fn rcpt(&mut self, recipient: Recipient) -> Result<Action, Self::Error> {
-        self.recipient = Some(recipient);
+        self.recipient = Some(recipient.recipient().into_owned());
         Ok(Continue.into())
     }
 
@@ -192,8 +192,7 @@ impl Milter for Connection {
             return Ok(ModificationResponse::empty_continue());
         };
 
-        let recipient = recipient.recipient();
-        let domain = match recipient.as_ref().rsplit_once('a') {
+        let domain = match recipient.rsplit_once('a') {
             Some((_, domain)) => domain.trim_end_matches('>'),
             None => {
                 warn!(%recipient, "malformed recipient address");

@@ -221,7 +221,7 @@ impl Milter for Connection {
 
         // For simplicity, just use the first selector found
         let Some((selector, sealer)) = selectors.iter().next() else {
-            warn!(recipient, "no selectors found for domain");
+            warn!(recipient, "no selectors found for recipient");
             return Ok(ModificationResponse::empty_continue());
         };
 

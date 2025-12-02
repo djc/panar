@@ -185,13 +185,8 @@ impl Milter for Connection {
 
     async fn end_of_header(&mut self) -> Result<Action, Self::Error> {
         debug!("end of headers");
-        match self.received {
-            true => {
-                self.message.extend(b"\r\n");
-                Ok(Continue.into())
-            }
-            false => Ok(Skip.into()),
-        }
+        self.message.extend(b"\r\n");
+        Ok(Continue.into())
     }
 
     async fn body(&mut self, body: Body) -> Result<Action, Self::Error> {
@@ -272,11 +267,17 @@ impl Milter for Connection {
                 client.address = %connect.address(),
                 client.hostname = %connect.hostname(),
                 recipient,
+                received = self.received,
                 selector,
                 "ARC headers added",
             );
         } else {
-            info!(recipient, selector, "ARC headers added");
+            info!(
+                recipient,
+                received = self.received,
+                selector,
+                "ARC headers added"
+            );
         }
 
         Ok(builder.contin())

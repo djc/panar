@@ -17,6 +17,7 @@ use miltr_common::{
 };
 use miltr_server::Milter;
 use serde::Deserialize;
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use tokio::net::TcpListener;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{debug, error, info, warn};
@@ -267,6 +268,19 @@ impl Milter for Connection {
             builder.push(AddHeader::new(name.as_bytes(), value.as_bytes()));
         }
 
+        if let Some(dir) = &self.state.dump {
+            let now = OffsetDateTime::now_utc();
+            match now.format(&Rfc3339) {
+                Ok(ts) => {
+                    let path = dir.join(format!("{ts}.txt"));
+                    if let Err(error) = fs::write(&path, &self.message) {
+                        error!(%error, path = %path.display(), "failed to dump message");
+                    }
+                }
+                Err(error) => error!(%error, "failed to format timestamp for message dump"),
+            }
+        }
+
         if let Some(connect) = &self.connect {
             info!(
                 client.address = %connect.address(),
@@ -297,6 +311,7 @@ impl Milter for Connection {
 
 pub struct State {
     sealers: HashMap<String, HashMap<String, ArcSealer<RsaKey<Sha256>, Done>>>,
+    dump: Option<PathBuf>,
 }
 
 impl State {
@@ -323,11 +338,15 @@ impl State {
             }
         }
 
-        Ok(Self { sealers })
+        Ok(Self {
+            sealers,
+            dump: config.dump,
+        })
     }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
     keys: HashMap<String, HashMap<String, PathBuf>>,
+    dump: Option<PathBuf>,
 }

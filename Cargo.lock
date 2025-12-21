@@ -742,9 +742,8 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
 name = "mail-auth"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02eddfa5879c225046a316c8a3328c70cdb4ffa6035f566a6d85fd29be37fd1c"
+version = "0.7.5"
+source = "git+https://github.com/djc/mail-auth?branch=rsa-pkcs8#20731722d24b81aa783d5ac537eec976222b62e7"
 dependencies = [
  "ahash",
  "flate2",

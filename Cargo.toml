@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 anyhow = "1"
 async-trait = "0.1.89"
 clap = { version = "4.5", features = ["derive"] }
-mail-auth = { version = "0.7.2", default-features = false, features = ["ring"] }
+mail-auth = { git = "https://github.com/djc/mail-auth", branch = "rsa-pkcs8",  default-features = false, features = ["ring"] }
 miltr-server = "0.2"
 miltr-common = "0.1.3"
 rustls-pki-types = "1.13.2"

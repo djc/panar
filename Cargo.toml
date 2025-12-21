@@ -8,9 +8,10 @@ license = "MIT OR Apache-2.0"
 anyhow = "1"
 async-trait = "0.1.89"
 clap = { version = "4.5", features = ["derive"] }
-mail-auth = { version = "0.7.2", default-features = false, features = ["ring", "rustls-pemfile"] }
+mail-auth = { version = "0.7.2", default-features = false, features = ["ring"] }
 miltr-server = "0.2"
 miltr-common = "0.1.3"
+rustls-pki-types = "1.13.2"
 serde = { version = "1", features = ["derive"] }
 time = { version = "0.3.44", features = ["formatting"] }
 tokio = { version = "1.48", features = ["macros", "net", "rt-multi-thread"] }

@@ -16,6 +16,7 @@ use miltr_common::{
     optneg::{Capability, OptNeg, Protocol},
 };
 use miltr_server::Milter;
+use rustls_pki_types::{pem::PemObject, PrivateKeyDer};
 use serde::Deserialize;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use tokio::net::TcpListener;
@@ -315,11 +316,11 @@ impl State {
         for (domain, selectors) in config.keys {
             let inner = sealers.entry(domain.clone()).or_insert_with(HashMap::new);
             for (selector, path) in selectors {
-                let pem = fs::read_to_string(&path).map_err(|e| {
+                let key = PrivateKeyDer::from_pem_file(&path).map_err(|e| {
                     anyhow::Error::msg(format!("failed to read key file {path:?}: {e}"))
                 })?;
 
-                let key = RsaKey::<Sha256>::from_pkcs8_pem(&pem).map_err(|e| {
+                let key = RsaKey::<Sha256>::from_key_der(key).map_err(|e| {
                     anyhow::Error::msg(format!("failed to parse key file {path:?}: {e}"))
                 })?;
 

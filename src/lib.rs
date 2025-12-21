@@ -1,4 +1,10 @@
-use std::{collections::HashMap, fs, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    fs,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use mail_auth::{
     arc::ArcSealer,
@@ -311,11 +317,15 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(config: Config) -> anyhow::Result<Self> {
+    pub fn new(config: Config, config_path: &Path) -> anyhow::Result<Self> {
         let mut sealers = HashMap::new();
         for (domain, selectors) in config.keys {
             let inner = sealers.entry(domain.clone()).or_insert_with(HashMap::new);
-            for (selector, path) in selectors {
+            for (selector, mut path) in selectors {
+                if !path.is_absolute() {
+                    path = config_path.join(path);
+                }
+
                 let key = PrivateKeyDer::from_pem_file(&path).map_err(|e| {
                     anyhow::Error::msg(format!("failed to read key file {path:?}: {e}"))
                 })?;

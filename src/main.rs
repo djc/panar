@@ -1,7 +1,7 @@
 use std::{
     env, fs,
     net::{Ipv4Addr, SocketAddr},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use clap::Parser;
@@ -36,7 +36,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let options = Options::parse();
     let config = fs::read_to_string(&options.config)?;
-    let state = State::new(toml::from_str(&config)?)?;
+    let state = State::new(
+        toml::from_str(&config)?,
+        options.config.parent().unwrap_or_else(|| Path::new("")),
+    )?;
 
     let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, options.port));
     let listener = Listener::new(addr, state).await?;

@@ -949,9 +949,9 @@ dependencies = [
 
 [[package]]
 name = "mail-auth"
-version = "0.11.1"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a88908ddf3a07fa2e76873f84d28476d3c802173fee0a44f6c5e5472523e6986"
+checksum = "faa246141b9a9194be268605d9db7228784a0eb347d155eeaa223181037693d0"
 dependencies = [
  "aws-lc-rs",
  "flate2",
@@ -959,6 +959,7 @@ dependencies = [
  "getrandom 0.4.3",
  "hashify",
  "hickory-resolver",
+ "idna",
  "mail-builder",
  "mail-parser",
  "rustls-pki-types",

@@ -8,11 +8,9 @@ use std::{
 
 use mail_auth::{
     arc::ArcSealer,
-    common::{
-        crypto::{RsaKey, Sha256},
-        headers::HeaderWriter,
-    },
-    dkim::Done,
+    crypto::{RsaKey, Sha256},
+    headers::HeaderWriter,
+    signer::Ready,
     ArcOutput, AuthenticatedMessage, AuthenticationResults,
 };
 use miltr_common::{
@@ -312,7 +310,7 @@ impl Milter for Connection {
 }
 
 pub struct State {
-    sealers: HashMap<String, HashMap<String, ArcSealer<RsaKey<Sha256>, Done>>>,
+    sealers: HashMap<String, HashMap<String, ArcSealer<RsaKey<Sha256>, Ready>>>,
     dump: Option<PathBuf>,
 }
 
